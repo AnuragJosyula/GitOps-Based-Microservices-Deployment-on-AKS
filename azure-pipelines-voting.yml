@@ -1,0 +1,72 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+  paths:
+    include:
+      - vote/*
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection (service connection GUID)
+  dockerRegistryServiceConnection: '8a4a6f48-9e31-4948-838b-e17bf4bc6cd5'
+  imageRepository: 'vote'
+  containerRegistry: 'anuragcicdapp.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/vote/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+pool:
+  name: 'azureuser'
+
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:
+  - job: Build
+    displayName: Build
+    steps:
+    - task: Docker@2
+      displayName: Build
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'build'
+        Dockerfile: '$(dockerfilePath)'
+        tags: |
+          $(tag)
+
+- stage: Push
+  displayName: Push image
+  dependsOn: Build
+  jobs:
+  - job: Push
+    displayName: Push
+    steps:
+    - task: Docker@2
+      displayName: Push
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'push'
+        tags: |
+          $(tag)
+
+- stage: Update
+  displayName: Update manifests
+  dependsOn: Push
+  condition: succeeded()
+  jobs:
+  - job: Update
+    displayName: Update manifests
+    steps:
+    - script: sed -i 's/\r$//' scripts/k8smanifestsUpdation.sh
+      displayName: Fix line endings for Linux
+
+    - task: ShellScript@2
+      displayName: Update Kubernetes manifests
+      inputs:
+        scriptPath: 'scripts/k8smanifestsUpdation.sh'
+        args: 'vote $(tag)'

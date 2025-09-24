@@ -1,0 +1,51 @@
+trigger:
+  paths:
+    include:
+      - result/*
+
+resources:
+- repo: self
+
+variables:
+  dockerRegistryServiceConnection: '147fdc39-d34d-4f8b-9141-ad1b46bd80a5'
+  imageRepository: 'resultapp'
+  containerRegistry: 'anuragcicdapp.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/result/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+pool:
+  name: 'azureuser'
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      name: azureuser
+    steps:
+    - task: Docker@2
+      displayName: Build image
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'build'
+        Dockerfile: 'result/Dockerfile'
+        tags: '$(tag)'
+
+- stage: Push  
+  displayName: Push stage
+  jobs:
+  - job: Push
+    displayName: Push
+    pool:
+      name: azureuser
+    steps:
+    - task: Docker@2
+      displayName: Push image
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'push'
+        tags: '$(tag)'
